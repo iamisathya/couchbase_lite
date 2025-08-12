@@ -2,6 +2,12 @@
 
 A high-performance offline-first Flutter application demonstrating Couchbase Lite integration for local storage with full CRUD functionality. This app randomly fetches posts from the JSONPlaceholder API, stores them locally, and allows full offline data manipulation.
 
+## Demo
+
+![Simulator Screen Recording - iPhone 16 - 2025-08-12 at 22 46 14](https://github.com/user-attachments/assets/55a45bca-498e-4873-8504-d35c600716f1)
+
+
+
 ## 🚀 Features
 
 ### 📥 Fetch Posts Randomly
