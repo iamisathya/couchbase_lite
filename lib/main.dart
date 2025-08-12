@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cbl_flutter/cbl_flutter.dart';
-import 'package:mindweave/providers/post_provider.dart';
-import 'package:mindweave/screens/home_screen.dart';
-import 'package:mindweave/theme.dart';
+import 'package:couchbase_lite_flutter_demo/providers/post_provider.dart';
+import 'package:couchbase_lite_flutter_demo/screens/home_screen.dart';
+import 'package:couchbase_lite_flutter_demo/theme.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => PostProvider(),
       child: MaterialApp(
-        title: 'MindWeave - Post Manager',
+        title: 'Couchbase Lite - Flutter demo',
         debugShowCheckedModeBanner: false,
         theme: lightTheme,
         darkTheme: darkTheme,

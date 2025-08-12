@@ -1,4 +1,4 @@
-name: mindweave
+name: couchbase_lite_flutter_demo
 description: "Unleash your inner editor with \\\"Post-haste,\\\" a sleek app that lets you fetch, tweak, and persistently store random API posts, all while showcasing the power of Couchbase Lite."
 publish_to: "none"
 version: 1.0.0

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:mindweave/models/post_model.dart';
-import 'package:mindweave/providers/post_provider.dart';
-import 'package:mindweave/utils/snackbar_helper.dart';
-import 'package:mindweave/widgets/loading_widget.dart';
+import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
+import 'package:couchbase_lite_flutter_demo/providers/post_provider.dart';
+import 'package:couchbase_lite_flutter_demo/utils/snackbar_helper.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/loading_widget.dart';
 
 class EditPostScreen extends StatefulWidget {
   final PostModel post;

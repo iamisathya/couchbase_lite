@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:mindweave/providers/post_provider.dart';
-import 'package:mindweave/screens/post_list_screen.dart';
-import 'package:mindweave/utils/snackbar_helper.dart';
-import 'package:mindweave/widgets/loading_widget.dart';
-import 'package:mindweave/widgets/post_card.dart';
-import 'package:mindweave/widgets/action_button.dart';
+import 'package:couchbase_lite_flutter_demo/providers/post_provider.dart';
+import 'package:couchbase_lite_flutter_demo/screens/post_list_screen.dart';
+import 'package:couchbase_lite_flutter_demo/utils/snackbar_helper.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/loading_widget.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/post_card.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/action_button.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Consumer<PostProvider>(
         builder: (context, postProvider, child) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Theme.of(context).colorScheme.primaryContainer
                       : Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(8),
                     child: Row(
                       children: [
                         Icon(
@@ -195,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 24),
+                
                 
                 // Post Content or Loading
                 if (postProvider.isFetchingPost) ...[
@@ -223,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(8),
                       child: Column(
                         children: [
                           Icon(
@@ -231,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             size: 48,
                             color: Theme.of(context).colorScheme.onErrorContainer,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
                           Text(
                             'Error',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -297,33 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   
                   const SizedBox(height: 16),
-                  
-                  // Post Status Indicator
-                  if (postProvider.isPostSaved(postProvider.currentPost!.id))
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.tertiaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.onTertiaryContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'This post is already saved in Couchbase',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onTertiaryContainer,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                 
                 ],
                 
                 const SizedBox(height: 24),
@@ -333,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, postProvider, child) {
                     return Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(8),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

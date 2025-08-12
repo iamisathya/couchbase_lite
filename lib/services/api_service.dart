@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'package:mindweave/models/post_model.dart';
+import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
 
 class ApiService {
   static const String baseUrl = 'https://jsonplaceholder.typicode.com';

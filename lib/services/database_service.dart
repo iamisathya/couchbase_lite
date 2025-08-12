@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:cbl/cbl.dart';
-import 'package:mindweave/models/post_model.dart';
+import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
 
 class DatabaseService {
   static DatabaseService? _instance;

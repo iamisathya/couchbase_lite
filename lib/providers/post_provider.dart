@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:mindweave/models/post_model.dart';
-import 'package:mindweave/services/api_service.dart';
-import 'package:mindweave/services/database_service.dart';
+import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
+import 'package:couchbase_lite_flutter_demo/services/api_service.dart';
+import 'package:couchbase_lite_flutter_demo/services/database_service.dart';
 
 class PostProvider with ChangeNotifier {
   // Current post being displayed/edited

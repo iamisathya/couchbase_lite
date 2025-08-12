@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:mindweave/models/post_model.dart';
-import 'package:mindweave/providers/post_provider.dart';
-import 'package:mindweave/screens/edit_post_screen.dart';
-import 'package:mindweave/utils/snackbar_helper.dart';
-import 'package:mindweave/widgets/loading_widget.dart';
-import 'package:mindweave/widgets/post_card.dart';
+import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
+import 'package:couchbase_lite_flutter_demo/providers/post_provider.dart';
+import 'package:couchbase_lite_flutter_demo/screens/edit_post_screen.dart';
+import 'package:couchbase_lite_flutter_demo/utils/snackbar_helper.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/loading_widget.dart';
+import 'package:couchbase_lite_flutter_demo/widgets/post_card.dart';
 
 class PostListScreen extends StatefulWidget {
   const PostListScreen({super.key});
@@ -272,7 +272,7 @@ class _PostListScreenState extends State<PostListScreen> {
                 // Stats Header
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(8),
                   child: Card(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     child: Padding(
@@ -281,12 +281,13 @@ class _PostListScreenState extends State<PostListScreen> {
                         children: [
                           Icon(
                             Icons.storage,
+                            size: 18,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
                           ),
                           const SizedBox(width: 12),
                           Text(
                             'Saved Posts: ${postProvider.savedPostsCount}',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.onPrimaryContainer,
                               fontWeight: FontWeight.w600,
                             ),
@@ -294,6 +295,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           const Spacer(),
                           Icon(
                             Icons.storage,
+                            size: 18,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
                           ),
                         ],
@@ -305,7 +307,6 @@ class _PostListScreenState extends State<PostListScreen> {
                 // Posts List
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: postProvider.savedPosts.length,
                     itemBuilder: (context, index) {
                       final post = postProvider.savedPosts[index];
