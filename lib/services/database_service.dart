@@ -2,12 +2,29 @@ import 'dart:async';
 import 'package:cbl/cbl.dart';
 import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
 
+enum SyncStatus {
+  idle,
+  connecting,
+  active,
+  error,
+  stopped
+}
+
 class DatabaseService {
   static DatabaseService? _instance;
   static Database? _database;
+  static Replicator? _replicator;
   static const String _databaseName = 'mindweave_posts';
   static const String _collectionName = 'posts';
   static const String _indexDocId = 'post_index';
+  
+  // App Services configuration
+  static const String _appServicesUrl = 'wss://ucledcbvi7byidag.apps.cloud.couchbase.com:4984/sathya-couchbase';
+  
+  // Sync status management
+  final _syncStatusController = StreamController<SyncStatus>.broadcast();
+  SyncStatus _currentSyncStatus = SyncStatus.idle;
+  String? _lastSyncError;
   
   DatabaseService._();
   
@@ -15,6 +32,11 @@ class DatabaseService {
     _instance ??= DatabaseService._();
     return _instance!;
   }
+
+  // Sync status getters
+  Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
+  SyncStatus get currentSyncStatus => _currentSyncStatus;
+  String? get lastSyncError => _lastSyncError;
 
   // Initialize the database
   Future<void> initialize() async {
@@ -58,10 +80,20 @@ class DatabaseService {
   }
 
   // Save or update a post and update index
-    // Save or update a post and update index
+  
+  // Save or update a post and update index
   Future<bool> savePost(PostModel post) async {
     try {
       await _ensureDatabaseInitialized();
+      
+      // Ensure replicator is running
+      if (_replicator == null || (await _replicator!.status).activity == ReplicatorActivityLevel.stopped) {
+        print('⚠️ Replicator not running, attempting to start sync');
+        final syncStarted = await startSync(password: 'Admin@123', username: "admin");
+        if (!syncStarted) {
+          throw DatabaseException('Cannot save post: Sync not active');
+        }
+      }
       
       // Validate and sanitize document ID
       final docId = _validateDocumentId(post.id);
@@ -134,7 +166,6 @@ class DatabaseService {
   }
 
   // Get a specific post by ID (simple document lookup)
-  // Get a specific post by ID (simple document lookup)
   Future<PostModel?> getPostById(String postId) async {
     try {
       await _ensureDatabaseInitialized();
@@ -157,7 +188,6 @@ class DatabaseService {
     }
   }
 
-  // Update a post using N1QL
   // Update a post using N1QL
   Future<bool> updatePost(PostModel post) async {
     try {
@@ -182,7 +212,6 @@ class DatabaseService {
     }
   }
 
-  // Delete a post and update index
   // Delete a post and update index
   Future<bool> deletePost(String postId) async {
     try {
@@ -220,7 +249,6 @@ class DatabaseService {
     }
   }
 
-  // Check if post exists
   // Check if post exists
   Future<bool> postExists(String postId) async {
     try {
@@ -262,7 +290,6 @@ class DatabaseService {
   }
 
   // Ensure database is initialized
-  // Ensure database is initialized
   Future<void> _ensureDatabaseInitialized() async {
     if (_database == null) {
       await initialize();
@@ -300,11 +327,179 @@ class DatabaseService {
   // Close database connection
   Future<void> close() async {
     try {
+      await stopSync();
       await _database?.close();
       _database = null;
+      await _syncStatusController.close();
       print('🔒 Database connection closed');
     } catch (e) {
       print('❌ Failed to close database: $e');
+    }
+  }
+
+  // === SYNC FUNCTIONALITY ===
+  
+  // Start synchronization with App Services
+  Future<bool> startSync({String? username = "admin", String? password = "Admin@123"}) async {
+    try {
+      await _ensureDatabaseInitialized();
+      
+      if (_replicator != null) {
+        final status = await _replicator!.status;
+        if (status.activity != ReplicatorActivityLevel.stopped) {
+          print('🔄 Replicator already running');
+          return true;
+        }
+      }
+      
+      _updateSyncStatus(SyncStatus.connecting);
+      
+      // Configure replicator
+      final endpoint = UrlEndpoint(Uri.parse(_appServicesUrl));
+      
+      ReplicatorConfiguration config = ReplicatorConfiguration(
+        database: _database!,
+        target: endpoint,
+      );
+      
+      // Set replication type (push and pull)
+      config.replicatorType = ReplicatorType.pushAndPull;
+      
+      // Set continuous mode
+      config.continuous = true;
+      
+      // Add authentication if provided
+      if (username != null && password != null) {
+        config.authenticator = BasicAuthenticator(
+          username: username,
+          password: password,
+        );
+      }
+      
+      // Configure channels (optional - for App Services filtering)
+      // config.channels = ['posts']; // Uncomment if using channels
+      
+      // Create replicator
+      _replicator = await Replicator.create(config);
+      
+      // Add status change listener
+      _replicator!.addChangeListener(_onReplicatorStatusChanged);
+      
+      // Start replication
+      await _replicator!.start();
+      
+      print('🚀 Sync started with App Services: $_appServicesUrl');
+      return true;
+      
+    } catch (e, stackTrace) {
+      print('❌ Failed to start sync: $e StackTrace: $stackTrace');
+      _lastSyncError = 'Failed to start sync: $e';
+      _updateSyncStatus(SyncStatus.error);
+      return false;
+    }
+  }
+  
+  // Stop synchronization
+  Future<void> stopSync() async {
+    try {
+      if (_replicator != null) {
+        await _replicator!.stop();
+        _replicator = null;
+        _updateSyncStatus(SyncStatus.stopped);
+        print('⏹️ Sync stopped');
+      }
+    } catch (e) {
+      print('❌ Failed to stop sync: $e');
+      _lastSyncError = 'Failed to stop sync: $e';
+      _updateSyncStatus(SyncStatus.error);
+    }
+  }
+  
+  // Test connection to App Services
+  Future<bool> testConnection() async {
+    try {
+      _updateSyncStatus(SyncStatus.connecting);
+      
+      // Attempt to connect briefly to test
+      final success = await startSync();
+      if (success) {
+        // Stop immediately after successful connection test
+        await Future.delayed(Duration(seconds: 2));
+        await stopSync();
+        print('✅ Connection test successful');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('❌ Connection test failed: $e');
+      _lastSyncError = 'Connection test failed: $e';
+      _updateSyncStatus(SyncStatus.error);
+      return false;
+    }
+  }
+  
+  // Get current replicator status
+  Future<String> getReplicatorStatusText() async {
+    if (_replicator == null) return 'Not initialized';
+    
+    final status = await _replicator!.status;
+    final activity = status.activity;
+    final progress = status.progress;
+    
+    String statusText = activity.name;
+    
+    // Skip progress display for now due to API differences
+    // if (progress.total > 0) {
+    //   statusText += ' (${progress.completed}/${progress.total})';
+    // }
+    
+    if (status.error != null) {
+      statusText += ' - Error: ${status.error}';
+    }
+    
+    return statusText;
+  }
+  
+  // Private method to handle replicator status changes
+  void _onReplicatorStatusChanged(ReplicatorChange change) {
+    final status = change.status;
+    print('🔄 Replicator status: ${status.activity.name}');
+    
+    switch (status.activity) {
+      case ReplicatorActivityLevel.busy:
+        _updateSyncStatus(SyncStatus.active);
+        break;
+      case ReplicatorActivityLevel.idle:
+        _updateSyncStatus(SyncStatus.idle);
+        break;
+      case ReplicatorActivityLevel.connecting:
+        _updateSyncStatus(SyncStatus.connecting);
+        break;
+      case ReplicatorActivityLevel.stopped:
+        _updateSyncStatus(SyncStatus.stopped);
+        break;
+      case ReplicatorActivityLevel.offline:
+        _updateSyncStatus(SyncStatus.error);
+        break;
+    }
+    
+    if (status.error != null) {
+      _lastSyncError = status.error.toString();
+      _updateSyncStatus(SyncStatus.error);
+      print('❌ Replicator error: ${status.error}');
+    }
+    
+    // Log progress if available - simplified for now
+    print('📊 Replicator activity: ${status.activity.name}');
+  }
+  
+  // Update sync status and notify listeners
+  void _updateSyncStatus(SyncStatus status) {
+    if (_currentSyncStatus != status) {
+      _currentSyncStatus = status;
+      _syncStatusController.add(status);
+      print('📡 Sync status updated: ${status.name}');
     }
   }
 
@@ -327,7 +522,7 @@ class DatabaseService {
     }
   }
 
-    Future<void> _addToIndex(String postId) async {
+  Future<void> _addToIndex(String postId) async {
     try {
       print('📇 Adding to index: $postId (Index doc ID: $_indexDocId)');
       final collection = await _database!.defaultCollection;
