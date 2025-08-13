@@ -7,6 +7,9 @@ A high-performance offline-first Flutter application demonstrating Couchbase Lit
 ![Simulator Screen Recording - iPhone 16 - 2025-08-12 at 22 46 14](https://github.com/user-attachments/assets/55a45bca-498e-4873-8504-d35c600716f1)
 
 
+## Cloud sync support
+<img width="1512" height="783" alt="Screenshot 2025-08-13 at 5 51 32 PM" src="https://github.com/user-attachments/assets/c652b0b2-94a7-4b39-8f56-f2e04f39f7f2" />
+
 
 ## 🚀 Features
 
