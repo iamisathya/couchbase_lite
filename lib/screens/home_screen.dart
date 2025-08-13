@@ -6,6 +6,7 @@ import 'package:couchbase_lite_flutter_demo/utils/snackbar_helper.dart';
 import 'package:couchbase_lite_flutter_demo/widgets/loading_widget.dart';
 import 'package:couchbase_lite_flutter_demo/widgets/post_card.dart';
 import 'package:couchbase_lite_flutter_demo/widgets/action_button.dart';
+import 'package:couchbase_lite_flutter_demo/services/database_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
   String _titleController = '';
   String _bodyController = '';
+  bool _isSyncTesting = false;
 
   @override
   void initState() {
@@ -99,6 +101,120 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // === SYNC CONTROL METHODS ===
+  
+  Future<void> _testConnection() async {
+    if (_isSyncTesting) return;
+    
+    setState(() {
+      _isSyncTesting = true;
+    });
+    
+    try {
+      final dbService = DatabaseService.instance;
+      final success = await dbService.testConnection();
+      
+      if (mounted) {
+        if (success) {
+          SnackBarHelper.showSuccess(context, 'Connection successful! 🔗');
+        } else {
+          SnackBarHelper.showError(context, 'Connection failed. Check endpoint.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, 'Connection test failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncTesting = false;
+        });
+      }
+    }
+  }
+  
+  Future<void> _startSync() async {
+    try {
+      final dbService = DatabaseService.instance;
+      final success = await dbService.startSync(password: 'Admin@123', username: "admin");
+      
+      if (mounted) {
+        if (success) {
+          SnackBarHelper.showSuccess(context, 'Sync started! 🚀');
+        } else {
+          SnackBarHelper.showError(context, 'Failed to start sync');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, 'Start sync failed: $e');
+      }
+    }
+  }
+  
+  Future<void> _stopSync() async {
+    try {
+      final dbService = DatabaseService.instance;
+      await dbService.stopSync();
+      
+      if (mounted) {
+        SnackBarHelper.showInfo(context, 'Sync stopped ⏹️');
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, 'Stop sync failed: $e');
+      }
+    }
+  }
+  
+  // === SYNC STATUS HELPER METHODS ===
+  
+  String _getSyncStatusText(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+        return 'Idle';
+      case SyncStatus.connecting:
+        return 'Connecting...';
+      case SyncStatus.active:
+        return 'Syncing';
+      case SyncStatus.error:
+        return 'Error';
+      case SyncStatus.stopped:
+        return 'Stopped';
+    }
+  }
+  
+  Color _getSyncStatusColor(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+        return Colors.blue;
+      case SyncStatus.connecting:
+        return Colors.orange;
+      case SyncStatus.active:
+        return Colors.green;
+      case SyncStatus.error:
+        return Colors.red;
+      case SyncStatus.stopped:
+        return Colors.grey;
+    }
+  }
+  
+  IconData _getSyncStatusIcon(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+        return Icons.pause_circle_outline;
+      case SyncStatus.connecting:
+        return Icons.sync;
+      case SyncStatus.active:
+        return Icons.sync;
+      case SyncStatus.error:
+        return Icons.error_outline;
+      case SyncStatus.stopped:
+        return Icons.stop_circle_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Consumer<PostProvider>(
         builder: (context, postProvider, child) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -165,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Theme.of(context).colorScheme.primaryContainer
                       : Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
                         Icon(
@@ -195,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 
-                
+                const SizedBox(height: 24),
                 
                 // Post Content or Loading
                 if (postProvider.isFetchingPost) ...[
@@ -223,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
                           Icon(
@@ -231,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             size: 48,
                             color: Theme.of(context).colorScheme.onErrorContainer,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           Text(
                             'Error',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -297,8 +413,172 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   
                   const SizedBox(height: 16),
-                 
+                  
+                  // Post Status Indicator
+                  if (postProvider.isPostSaved(postProvider.currentPost!.id))
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onTertiaryContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'This post is already saved in Couchbase',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onTertiaryContainer,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
+                
+                const SizedBox(height: 24),
+                
+                // Sync Controls Section
+                Card(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.sync,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Couchbase App Services Sync',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Sync Status
+                        StreamBuilder<SyncStatus>(
+                          stream: DatabaseService.instance.syncStatusStream,
+                          initialData: DatabaseService.instance.currentSyncStatus,
+                          builder: (context, snapshot) {
+                            final status = snapshot.data ?? SyncStatus.idle;
+                            final statusText = _getSyncStatusText(status);
+                            final statusColor = _getSyncStatusColor(status);
+                            final statusIcon = _getSyncStatusIcon(status);
+                            
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(statusIcon, size: 16, color: statusColor),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Status: $statusText',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        
+                        // Error Display
+                        if (DatabaseService.instance.lastSyncError != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Error: ${DatabaseService.instance.lastSyncError}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        
+                        // Sync Control Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ActionButton(
+                                text: 'Test Connection',
+                                icon: Icons.wifi_find,
+                                onPressed: _isSyncTesting ? null : _testConnection,
+                                isLoading: _isSyncTesting,
+                                isOutlined: true,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: StreamBuilder<SyncStatus>(
+                                stream: DatabaseService.instance.syncStatusStream,
+                                initialData: DatabaseService.instance.currentSyncStatus,
+                                builder: (context, snapshot) {
+                                  final status = snapshot.data ?? SyncStatus.idle;
+                                  final isActive = status == SyncStatus.active || 
+                                                   status == SyncStatus.connecting;
+                                  
+                                  return ActionButton(
+                                    text: isActive ? 'Stop Sync' : 'Start Sync',
+                                    icon: isActive ? Icons.stop : Icons.play_arrow,
+                                    onPressed: isActive ? _stopSync : _startSync,
+                                    backgroundColor: isActive 
+                                        ? Theme.of(context).colorScheme.error 
+                                        : null,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        // App Services URL Info
+                        Text(
+                          'Endpoint: wss://ucledcbvi7byidag.apps.cloud.couchbase.com:4984/sathya-couchbase',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 
                 const SizedBox(height: 24),
                 
@@ -307,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, postProvider, child) {
                     return Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
