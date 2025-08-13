@@ -10,6 +10,9 @@ enum SyncStatus {
   stopped
 }
 
+const USER_NAME = "admin";
+const PASSWORD = "Admin@123";
+
 class DatabaseService {
   static DatabaseService? _instance;
   static Database? _database;
@@ -17,6 +20,11 @@ class DatabaseService {
   static const String _databaseName = 'mindweave_posts';
   static const String _collectionName = 'posts';
   static const String _indexDocId = 'post_index';
+
+  ListenerToken? _liveQueryToken;
+  final _postsController = StreamController<List<PostModel>>.broadcast();
+
+  Stream<List<PostModel>> get livePostsStream => _postsController.stream;
   
   // App Services configuration
   static const String _appServicesUrl = 'wss://ucledcbvi7byidag.apps.cloud.couchbase.com:4984/sathya-couchbase';
@@ -80,8 +88,6 @@ class DatabaseService {
   }
 
   // Save or update a post and update index
-  
-  // Save or update a post and update index
   Future<bool> savePost(PostModel post) async {
     try {
       await _ensureDatabaseInitialized();
@@ -89,7 +95,7 @@ class DatabaseService {
       // Ensure replicator is running
       if (_replicator == null || (await _replicator!.status).activity == ReplicatorActivityLevel.stopped) {
         print('⚠️ Replicator not running, attempting to start sync');
-        final syncStarted = await startSync(password: 'Admin@123', username: "admin");
+        final syncStarted = await startSync();
         if (!syncStarted) {
           throw DatabaseException('Cannot save post: Sync not active');
         }
@@ -188,7 +194,7 @@ class DatabaseService {
     }
   }
 
-  // Update a post using N1QL
+  // Update a post
   Future<bool> updatePost(PostModel post) async {
     try {
       await _ensureDatabaseInitialized();
@@ -235,12 +241,11 @@ class DatabaseService {
     }
   }
 
-  // Get posts count using N1QL
+  // Get posts count
   Future<int> getPostsCount() async {
     try {
       await _ensureDatabaseInitialized();
       
-      // Simple count by getting all posts and counting them
       final posts = await getAllPosts();
       return posts.length;
     } catch (e) {
@@ -302,19 +307,12 @@ class DatabaseService {
       throw DatabaseException('Document ID cannot be empty');
     }
     
-    // CouchbaseLite document ID rules:
-    // 1. Cannot start with underscore (reserved for system docs)
-    // 2. Should be URL-safe characters
-    // 3. Cannot be null or empty
-    
     String sanitized = originalId.trim();
     
-    // If it starts with underscore, prefix with 'doc_'
     if (sanitized.startsWith('_')) {
       sanitized = 'doc$sanitized';
     }
     
-    // Replace any problematic characters with underscores
     sanitized = sanitized.replaceAll(RegExp(r'[^\w\-\.]'), '_');
     
     if (sanitized.isEmpty) {
@@ -340,7 +338,7 @@ class DatabaseService {
   // === SYNC FUNCTIONALITY ===
   
   // Start synchronization with App Services
-  Future<bool> startSync({String? username = "admin", String? password = "Admin@123"}) async {
+  Future<bool> startSync() async {
     try {
       await _ensureDatabaseInitialized();
       
@@ -350,9 +348,16 @@ class DatabaseService {
           print('🔄 Replicator already running');
           return true;
         }
+        await _replicator!.stop();
+        _replicator = null;
       }
       
       _updateSyncStatus(SyncStatus.connecting);
+      
+      // Validate URL
+      if (!_appServicesUrl.startsWith('wss://')) {
+        throw DatabaseException('Invalid App Services URL: Must use wss://');
+      }
       
       // Configure replicator
       final endpoint = UrlEndpoint(Uri.parse(_appServicesUrl));
@@ -368,16 +373,14 @@ class DatabaseService {
       // Set continuous mode
       config.continuous = true;
       
-      // Add authentication if provided
-      if (username != null && password != null) {
-        config.authenticator = BasicAuthenticator(
-          username: username,
-          password: password,
-        );
-      }
+      // Add authentication
+      config.authenticator = BasicAuthenticator(
+        username: USER_NAME,
+        password: PASSWORD,
+      );
       
-      // Configure channels (optional - for App Services filtering)
-      // config.channels = ['posts']; // Uncomment if using channels
+      // Configure channels for posts
+      config.channels = ['posts']; // Matches App Services sync function
       
       // Create replicator
       _replicator = await Replicator.create(config);
@@ -445,20 +448,39 @@ class DatabaseService {
     
     final status = await _replicator!.status;
     final activity = status.activity;
-    final progress = status.progress;
     
     String statusText = activity.name;
-    
-    // Skip progress display for now due to API differences
-    // if (progress.total > 0) {
-    //   statusText += ' (${progress.completed}/${progress.total})';
-    // }
     
     if (status.error != null) {
       statusText += ' - Error: ${status.error}';
     }
     
     return statusText;
+  }
+  
+  // Verify if a post has synced to the cloud (for debugging)
+  Future<bool> isPostSynced(String postId) async {
+    try {
+      final docId = _validateDocumentId(postId);
+      if (_replicator == null || (await _replicator!.status).activity == ReplicatorActivityLevel.stopped) {
+        print('⚠️ Cannot verify sync: Replicator not running');
+        return false;
+      }
+      
+      // Wait for sync to complete (simplified check)
+      await Future.delayed(Duration(seconds: 2)); // Adjust based on network
+      final status = await _replicator!.status;
+      if (status.activity == ReplicatorActivityLevel.idle && status.error == null) {
+        print('✅ Post $docId likely synced (replicator idle)');
+        return true;
+      } else {
+        print('⚠️ Post $docId sync status unclear: Replicator ${status.activity.name}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Failed to verify post sync: $e');
+      return false;
+    }
   }
   
   // Private method to handle replicator status changes
@@ -490,7 +512,6 @@ class DatabaseService {
       print('❌ Replicator error: ${status.error}');
     }
     
-    // Log progress if available - simplified for now
     print('📊 Replicator activity: ${status.activity.name}');
   }
   
@@ -551,7 +572,6 @@ class DatabaseService {
     } catch (e) {
       print('❌ Failed to add to index: $e');
       print('❌ Post ID: $postId, Index doc ID: $_indexDocId');
-      // Don't rethrow - index update is not critical for post saving
     }
   }
 
@@ -587,6 +607,47 @@ class DatabaseService {
       print('⚠️ Failed to clear index: $e');
     }
   }
+
+    // Start live query for posts
+  Future<void> startLiveQuery() async {
+    await _ensureDatabaseInitialized();
+    final collection = await _database!.defaultCollection;
+
+    // Build the query using QueryBuilder
+    final query = QueryBuilder()
+        .select(SelectResult.all())
+        .from(DataSource.collection(collection))
+        .where(Expression.property('type').equalTo(Expression.string('post')));
+
+    // Add change listener for live updates
+    _liveQueryToken = await query.addChangeListener((change) async {
+      final posts = <PostModel>[];
+      final results = change.results;
+      final resultsall = await results.allResults();
+      for (final result in resultsall) {
+        final data = result.toPlainMap()[_collectionName];
+        if (data is Map<String, dynamic> && data['type'] == 'post') {
+          posts.add(PostModel.fromDocument(data));
+        }
+      }
+        posts.sort((a, b) => b.updatedAt.compareTo(a.updatedAt)); // Newest first
+      _postsController.add(posts);
+      print('📋 Live query: ${posts.length} posts updated');
+    });
+
+    // Initial execution to trigger listener
+    await query.execute();
+  }
+
+    // Stop live query when not needed
+    Future<void> stopLiveQuery() async {
+      if (_liveQueryToken != null) {
+        // ListenerToken doesn't have a remove method; it's managed by the query
+        // Simply nullify the token, as the listener is tied to the query lifecycle
+        _liveQueryToken = null;
+      }
+      await _postsController.close();
+    }
 }
 
 class DatabaseException implements Exception {

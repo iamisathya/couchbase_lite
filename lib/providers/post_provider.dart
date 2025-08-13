@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:couchbase_lite_flutter_demo/models/post_model.dart';
 import 'package:couchbase_lite_flutter_demo/services/api_service.dart';
@@ -23,6 +24,9 @@ class PostProvider with ChangeNotifier {
   // Database service instance
   final DatabaseService _databaseService = DatabaseService.instance;
 
+  // Stream subscription for live posts
+  StreamSubscription<List<PostModel>>? _postsSubscription;
+
   // Getters
   PostModel? get currentPost => _currentPost;
   List<PostModel> get savedPosts => List.unmodifiable(_savedPosts);
@@ -39,10 +43,32 @@ class PostProvider with ChangeNotifier {
   Future<void> initialize() async {
     try {
       await _databaseService.initialize();
-      await loadSavedPosts();
+      await _databaseService.startLiveQuery(); // Start live query
+      _subscribeToLivePosts(); // Subscribe to live updates
+      await loadSavedPosts(); // Initial load
     } catch (e) {
       _setError('Failed to initialize: ${e.toString()}');
+      notifyListeners();
     }
+  }
+
+  // Subscribe to live posts stream
+  void _subscribeToLivePosts() {
+    _postsSubscription?.cancel(); // Cancel any existing subscription
+    _postsSubscription = _databaseService.livePostsStream.listen(
+      (posts) {
+        _savedPosts = posts;
+        _isLoadingPosts = false;
+        _clearError();
+        notifyListeners();
+        print('📡 PostProvider: Received ${posts.length} posts from live stream');
+      },
+      onError: (error) {
+        _setError('Live stream error: ${error.toString()}');
+        _isLoadingPosts = false;
+        notifyListeners();
+      },
+    );
   }
 
   // Fetch a random post from API
@@ -85,8 +111,7 @@ class PostProvider with ChangeNotifier {
       _isSavingPost = false;
       
       if (success) {
-        // Refresh saved posts list
-        await loadSavedPosts();
+        // Live query will update _savedPosts automatically
         notifyListeners();
       } else {
         _setError('Failed to save post to database');
@@ -99,7 +124,7 @@ class PostProvider with ChangeNotifier {
     }
   }
 
-  // Load all saved posts from CouchbaseLite
+  // Load all saved posts from CouchbaseLite (for initial load or fallback)
   Future<void> loadSavedPosts() async {
     _isLoadingPosts = true;
     _clearError();
@@ -128,14 +153,10 @@ class PostProvider with ChangeNotifier {
       _isDeletingPost = false;
       
       if (success) {
-        // Remove from local list
-        _savedPosts.removeWhere((post) => post.id == postId);
-        
-        // Clear current post if it's the deleted one
+        // Live query will update _savedPosts automatically
         if (_currentPost?.id == postId) {
           _currentPost = null;
         }
-        
         notifyListeners();
         return true;
       } else {
@@ -162,17 +183,10 @@ class PostProvider with ChangeNotifier {
       _isUpdatingPost = false;
       
       if (success) {
-        // Update in local list
-        final index = _savedPosts.indexWhere((post) => post.id == updatedPost.id);
-        if (index >= 0) {
-          _savedPosts[index] = updatedPost;
-        }
-        
-        // Update current post if it's the same
+        // Live query will update _savedPosts automatically
         if (_currentPost?.id == updatedPost.id) {
           _currentPost = updatedPost;
         }
-        
         notifyListeners();
         return true;
       } else {
@@ -220,7 +234,7 @@ class PostProvider with ChangeNotifier {
   Future<void> refreshAll() async {
     await Future.wait([
       fetchRandomPost(),
-      loadSavedPosts(),
+      loadSavedPosts(), // Optional, as live query handles updates
     ]);
   }
 
@@ -228,7 +242,7 @@ class PostProvider with ChangeNotifier {
   Future<void> clearAllSavedPosts() async {
     try {
       await _databaseService.clearAllPosts();
-      _savedPosts.clear();
+      // Live query will update _savedPosts to empty
       notifyListeners();
     } catch (e) {
       _setError('Failed to clear all posts: ${e.toString()}');
@@ -251,6 +265,8 @@ class PostProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _postsSubscription?.cancel();
+    _databaseService.stopLiveQuery();
     _databaseService.close();
     super.dispose();
   }

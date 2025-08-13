@@ -137,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startSync() async {
     try {
       final dbService = DatabaseService.instance;
-      final success = await dbService.startSync(password: 'Admin@123', username: "admin");
+      final success = await dbService.startSync();
       
       if (mounted) {
         if (success) {
